@@ -116,7 +116,7 @@ imagetransform = transforms.Compose([
         
 modelPath = "scrapseg_model.pth"
 
-def segment(inputfile, outputfile, threshold=0.5):
+def segment(img, outputfile, threshold=0.5):
     model = UnetGenerator(3, 1, 6, ngf=64)
     model.load_state_dict(
         torch.load(modelPath)
@@ -127,7 +127,8 @@ def segment(inputfile, outputfile, threshold=0.5):
 #     print(inputOfmodel)
 #     torch.onnx.export(model, inputOfmodel, 'uplaraNew_model2.onnx', verbose=True)
 #     .cuda()
-    image = imagetransform(Image.open(inputfile))
+# Image.open(inputfile)
+    image = imagetransform(img)
     image = Variable(image).unsqueeze(0)
 #     .cuda()
     output = model(image)
@@ -138,12 +139,16 @@ def segment(inputfile, outputfile, threshold=0.5):
     print("reaches here")
     return img
 
-from flask import Flask, request, send_file
+from flask import Flask, request, send_file, make_response
 from flask_restful import Resource, Api
-
+from flask_cors import CORS
+import requests
+from io import BytesIO
 
 app = Flask(__name__)
 api = Api(app)
+# CORS(app, origins="*", allow_headers=[
+#     "Content-Type", "Authorization", "Access-Control-Allow-Credentials"])
 UPLOAD_FOLDER = ''
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
 
@@ -151,26 +156,45 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def build_preflight_response():
+    response = make_response()
+    response.headers.add("Access-Control-Allow-Origin", "*")
+    response.headers.add('Access-Control-Allow-Headers', "*")
+    response.headers.add('Access-Control-Allow-Methods', "*")
+    return response
+def build_actual_response(response):
+    response.headers.add("Access-Control-Allow-Origin", "*")
+    return response
+
 class SegmentationModel(Resource):
     def post(self):
-        print(request.files)
-        print(request.form['file'][0])
-        if 'file' not in request.files:
-            print('No file part')
-        file = request.form['file']
-#         request.files['file']
-        if file.filename == '':
-            print('No selected file')
-        if file and allowed_file(file.filename):
-            filename = file.filename
-            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        if request.method == 'OPTIONS':
+            response = build_preflight_response()
+            return response
+        url="https://homepages.cae.wisc.edu/~ece533/images/airplane.png"
+        response = requests.get(url)
+        img_input = Image.open(BytesIO(response.content))
+        print(img_input)
         img = segment('preview.jpg','output.jpg')
-        return send_file('output.jpg', attachment_filename='out.jpg')
+        return build_actual_response(send_file('output.jpg', attachment_filename='out.jpg'))
     def get(self):
-        img = segment('preview.jpg','output.jpg')
-        return send_file('output.jpg', attachment_filename='out.jpg')
+        if request.method == 'OPTIONS':
+            response = build_preflight_response()
+            return response
+        image_url = request.args.get('image_url')
+        print(image_url)
+        url="https://homepages.cae.wisc.edu/~ece533/images/airplane.png"
+        responseOfImage = requests.get(image_url)
+        img_input = Image.open(BytesIO(responseOfImage.content))
+        print(img_input)
+        img = segment(img_input,'output.jpg')
+        return build_actual_response(send_file('output.jpg', attachment_filename='out.jpg'))
+    def options(self):
+        if request.method == 'OPTIONS':
+            response = build_preflight_response()
+            return response
 
 api.add_resource(SegmentationModel, '/output', methods=['POST','GET'])
 
 if __name__ == '__main__':
-    app.run(debug=False)
+    app.run(debug=False, use_reloader=False)
