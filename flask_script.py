@@ -139,7 +139,7 @@ def segment(img, outputfile, threshold=0.5):
     print("reaches here")
     return img
 
-from flask import Flask, request, send_file, make_response
+from flask import Flask, request, send_file, make_response, jsonify
 from flask_restful import Resource, Api
 from flask_cors import CORS
 import requests
@@ -193,8 +193,16 @@ class SegmentationModel(Resource):
         if request.method == 'OPTIONS':
             response = build_preflight_response()
             return response
+class Test(Resource):
+    def get(self):
+        return build_actual_response(jsonify({'test': 'true'}))
+    def options(self):
+        if request.method == 'OPTIONS':
+            response = build_preflight_response()
+            return response
 
 api.add_resource(SegmentationModel, '/output', methods=['POST','GET'])
+api.add_resource(Test, '/', methods=['GET'])
 
 if __name__ == '__main__':
     app.run(debug=False, use_reloader=False)
