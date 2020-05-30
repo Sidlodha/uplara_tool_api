@@ -116,7 +116,7 @@ imagetransform = transforms.Compose([
         
 modelPath = "scrapseg_model.pth"
 
-def segment(img, outputfile, threshold=0.5):
+def segment(inputfile, outputfile, threshold=0.5):
     model = UnetGenerator(3, 1, 6, ngf=64)
     model.load_state_dict(
         torch.load(modelPath)
@@ -127,8 +127,8 @@ def segment(img, outputfile, threshold=0.5):
 #     print(inputOfmodel)
 #     torch.onnx.export(model, inputOfmodel, 'uplaraNew_model2.onnx', verbose=True)
 #     .cuda()
-# Image.open(inputfile)
-    image = imagetransform(img)
+# 
+    image = imagetransform(Image.open(inputfile))
     image = Variable(image).unsqueeze(0)
 #     .cuda()
     output = model(image)
@@ -144,11 +144,13 @@ from flask_restful import Resource, Api
 from flask_cors import CORS
 import requests
 from io import BytesIO
+from google.cloud import storage
+
+client = storage.Client.create_anonymous_client()
+
 
 app = Flask(__name__)
 api = Api(app)
-# CORS(app, origins="*", allow_headers=[
-#     "Content-Type", "Authorization", "Access-Control-Allow-Credentials"])
 UPLOAD_FOLDER = ''
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
 
@@ -183,11 +185,12 @@ class SegmentationModel(Resource):
             return response
         image_url = request.args.get('image_url')
         print(image_url)
-        url="https://homepages.cae.wisc.edu/~ece533/images/airplane.png"
-        responseOfImage = requests.get(image_url)
-        img_input = Image.open(BytesIO(responseOfImage.content))
-        print(img_input)
-        img = segment(img_input,'output.jpg')
+        bucket_name="web_scraped_images"
+        bucket = client.bucket(bucket_name)
+        blob = bucket.get_blob(image_url[52:])
+        with open("preview.png", "wb") as file_obj:
+            blob.download_to_file(file_obj)
+        img = segment("preview.png",'output.jpg')
         return build_actual_response(send_file('output.jpg', attachment_filename='out.jpg'))
     def options(self):
         if request.method == 'OPTIONS':
