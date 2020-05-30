@@ -205,4 +205,4 @@ api.add_resource(SegmentationModel, '/output', methods=['POST','GET'])
 api.add_resource(Test, '/', methods=['GET'])
 
 if __name__ == '__main__':
-    app.run(debug=False, use_reloader=False)
+    app.run(debug=False, use_reloader=False, port=8081, host='0.0.0.0')
